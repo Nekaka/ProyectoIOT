@@ -30,5 +30,5 @@ Actualizar las demás librerias en caso que no se hayan descargado las ultimas d
 
     pip install --upgrade mediapipe
 
-La carpeta sketch es un codigo básico para utilizar en el arduino que de momento solo enciende y apaga un led al abrir y cerror el puño frente a la webcam.
-Utilizar reconocimiento.py en VisualStudio preferentemente y cambiar en el codigo el puerto COM por el que este usando su arduino.
+### La carpeta sketch es un codigo básico para utilizar en el arduino que de momento solo enciende y apaga un led al abrir y cerrar el puño frente a la webcam.
+### Utilizar reconocimiento.py en VisualStudio preferentemente y cambiar en el codigo el puerto COM por el que este usando su arduino.
