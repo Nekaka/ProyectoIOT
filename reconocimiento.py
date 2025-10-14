@@ -14,6 +14,8 @@ except serial.SerialException as e:
     arduino = None
 
 led_state = 'OFF'
+last_action_time = 0  # Tiempo en que se realizó la última acción
+COOLDOWN_SECONDS = 2  # 2 segundos de enfriamiento entre acciones
 
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(
@@ -40,24 +42,32 @@ def is_finger_extended(finger_tip, finger_pip, finger_mcp):
     # En coordenadas de imagen, un valor Y más pequeño significa que está más arriba.
     return finger_tip.y < finger_pip.y and finger_pip.y < finger_mcp.y
 
-def recognize_gesture(hand_landmarks):
-    """Identifica un gesto basado en los dedos extendidos y devuelve un nombre y un valor."""
+def recognize_gesture(hand_landmarks, handedness):
+
     landmarks = hand_landmarks.landmark
     
-    # Comprobar si los dedos están extendidos
-    is_thumb_extended = landmarks[mp_hands.HandLandmark.THUMB_TIP].x < landmarks[mp_hands.HandLandmark.THUMB_IP].x
-    is_index_extended = is_finger_extended(landmarks[mp_hands.HandLandmark.INDEX_FINGER_TIP], landmarks[mp_hands.HandLandmark.INDEX_FINGER_PIP], landmarks[mp_hands.HandLandmark.INDEX_FINGER_MCP])
-    is_middle_extended = is_finger_extended(landmarks[mp_hands.HandLandmark.MIDDLE_FINGER_TIP], landmarks[mp_hands.HandLandmark.MIDDLE_FINGER_PIP], landmarks[mp_hands.HandLandmark.MIDDLE_FINGER_MCP])
-    is_ring_extended = is_finger_extended(landmarks[mp_hands.HandLandmark.RING_FINGER_TIP], landmarks[mp_hands.HandLandmark.RING_FINGER_PIP], landmarks[mp_hands.HandLandmark.RING_FINGER_MCP])
-    is_pinky_extended = is_finger_extended(landmarks[mp_hands.HandLandmark.PINKY_TIP], landmarks[mp_hands.HandLandmark.PINKY_PIP], landmarks[mp_hands.HandLandmark.PINKY_MCP])
+    # La lógica para los dedos índice, medio, anular y meñique no cambia,
+    # ya que se basa en la coordenada Y (vertical).
+    is_index_extended = landmarks[mp_hands.HandLandmark.INDEX_FINGER_TIP].y < landmarks[mp_hands.HandLandmark.INDEX_FINGER_MCP].y
+    is_middle_extended = landmarks[mp_hands.HandLandmark.MIDDLE_FINGER_TIP].y < landmarks[mp_hands.HandLandmark.MIDDLE_FINGER_MCP].y
+    is_ring_extended = landmarks[mp_hands.HandLandmark.RING_FINGER_TIP].y < landmarks[mp_hands.HandLandmark.RING_FINGER_MCP].y
+    is_pinky_extended = landmarks[mp_hands.HandLandmark.PINKY_TIP].y < landmarks[mp_hands.HandLandmark.PINKY_MCP].y
 
-    # Lógica para identificar el gesto
-    if all([is_thumb_extended, is_index_extended, is_middle_extended, is_ring_extended, is_pinky_extended]):
-        return "Cinco", 5
-    elif not any([is_index_extended, is_middle_extended, is_ring_extended, is_pinky_extended]):
-        return "Puño", 0
+    # --- Lógica corregida para el pulgar ---
+    # Si es la mano DERECHA, la punta del pulgar debe tener una X menor que la base.
+    if handedness == 'Right':
+        is_thumb_extended = landmarks[mp_hands.HandLandmark.THUMB_TIP].x < landmarks[mp_hands.HandLandmark.THUMB_IP].x
+    # Si es la mano IZQUIERDA, la punta del pulgar debe tener una X MAYOR que la base.
+    else: # 'Left'
+        is_thumb_extended = landmarks[mp_hands.HandLandmark.THUMB_TIP].x > landmarks[mp_hands.HandLandmark.THUMB_IP].x
     
-    return "No reconocido", -1
+    # Declaración de los gestos a utilizar
+    if all([is_thumb_extended, is_index_extended, is_middle_extended, is_ring_extended, is_pinky_extended]):
+        return "Cinco"
+    elif not any([is_index_extended, is_middle_extended, is_ring_extended, is_pinky_extended]):
+        return "Puño"
+    
+    return "No reconocido"
 
 # --- 4. BUCLE PRINCIPAL DE CAPTURA DE VIDEO Y PROCESAMIENTO ---
 webcam = cv2.VideoCapture(0)
@@ -65,39 +75,64 @@ print("Iniciando cámara... Presiona 'q' para salir.")
 
 while True:
     ret, frame = webcam.read()
-    if not ret:
-        print("Error al capturar el fotograma.")
-        break
-    
-    # Para una vista de espejo, volteamos el fotograma
+    if not ret: break
     frame = cv2.flip(frame, 1)
-    
-    # Convertir a RGB para el procesamiento
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-    # Procesamiento de manos y gestos
     results_hands = hands.process(rgb_frame)
     if results_hands.multi_hand_landmarks:
-        for hand_landmarks in results_hands.multi_hand_landmarks:
+        # --- CAMBIO 2: Iteramos usando un índice para acceder a la lateralidad ---
+        for idx, hand_landmarks in enumerate(results_hands.multi_hand_landmarks):
+            # Obtenemos la etiqueta 'Left' o 'Right'
+            handedness_obj = results_hands.multi_handedness[idx]
+            handedness_label = handedness_obj.classification[0].label
+
+            # Dibujamos los puntos en la mano
             mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
-            gesture_name, gesture_value = recognize_gesture(hand_landmarks)
             
-            # Lógica para enviar comandos al Arduino
-            if arduino is not None:
-                if gesture_value == 5 and led_state == 'OFF':
-                    arduino.write(b'H') # Enviar 'H' para encender (High)
-                    led_state = 'ON'
-                    print("Comando enviado: ENCENDER LED")
-                elif gesture_value == 0 and led_state == 'ON':
-                    arduino.write(b'L') # Enviar 'L' para apagar (Low)
-                    led_state = 'OFF'
-                    print("Comando enviado: APAGAR LED")
+            # Pasamos la lateralidad a nuestra función de reconocimiento
+            gesture_name = recognize_gesture(hand_landmarks, handedness_label)
+            
+            current_time = time.time()
+            if gesture_name == "Cinco" and (current_time - last_action_time) > COOLDOWN_SECONDS:
+                
+                # --- CAMBIO 3: Lógica de acciones separada por mano ---
+                if handedness_label == 'Left':
+                    # ACCIÓN PARA LA MANO IZQUIERDA: Controlar el LED
+                    if led_state == 'OFF':
+                        if arduino: arduino.write(b'H')
+                        led_state = 'ON'
+                        print(f"ACCIÓN (Mano Izquierda): Encendiendo LED")
+                    else:
+                        if arduino: arduino.write(b'L')
+                        led_state = 'OFF'
+                        print(f"ACCIÓN (Mano Izquierda): Apagando LED")
+                    last_action_time = current_time # Iniciar cooldown
+                
+                elif handedness_label == 'Right':
+                    # ACCIÓN PARA LA MANO DERECHA: Imprimir un mensaje (o lo que quieras)
+                    print(f"ACCIÓN (Mano Derecha): ¡Hola desde la mano derecha!")
+                    last_action_time = current_time # Iniciar cooldown
+            if gesture_name == "Puño" and (current_time - last_action_time) > COOLDOWN_SECONDS:
+                if handedness_label == 'Left':
+                    if led_state == 'OFF':
+                        if arduino: arduino.write(b'H')
+                        led_state = 'ON'
+                        print(f"ACCIÓN (Mano Izquierda): Encendiendo LED")
+                    else:
+                        if arduino: arduino.write(b'L')
+                        led_state = 'OFF'
+                        print(f"ACCIÓN (Mano Izquierda): Apagando LED")
+                    last_action_time = current_time # Iniciar cooldown
+                elif handedness_label == 'Right':
+                    print(f"Despues pensare que ponerle a este gesto XD")
+                    last_action_time = current_time # Iniciar cooldown
 
-            # Mostrar información del gesto en pantalla
+            # Mostramos en pantalla qué mano y qué gesto se detectó
             wrist = hand_landmarks.landmark[mp_hands.HandLandmark.WRIST]
-            cv2.putText(frame, f"Gesto: {gesture_name}", (int(wrist.x * frame.shape[1]), int(wrist.y * frame.shape[0]) - 20),
+            cv2.putText(frame, f"{handedness_label} - Gesto: {gesture_name}", (int(wrist.x * frame.shape[1]) - 50, int(wrist.y * frame.shape[0]) - 20),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-
+            
     # Procesamiento de rostros (si las imágenes se cargaron)
     if codificaciones_conocidas:
         ubicaciones_rostros = face_recognition.face_locations(rgb_frame)
