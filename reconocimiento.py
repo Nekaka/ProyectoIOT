@@ -26,15 +26,49 @@ hands = mp_hands.Hands(
 )
 mp_drawing = mp.solutions.drawing_utils
 
-try:
-    imagen_referencia = face_recognition.load_image_file("foto.jpg") #Cambiar despues por una foto de la persona
-    codificacion_referencia = face_recognition.face_encodings(imagen_referencia)[0]
-    codificaciones_conocidas = [codificacion_referencia]
-    nombres_conocidos = ["Inserte nombre"] #Cambiar luego por el nombre de la persona
-except FileNotFoundError:
-    print("Advertencia: No se encontro ninguna imagen, el reconocimiento facial estara desactivado")
-    codificaciones_conocidas = []
-    nombres_conocidos = [0]
+# --- 2. NUEVA SECCIÓN: CARGA AUTOMÁTICA DE ROSTROS ---
+# Define la ruta a la carpeta que contiene las imágenes de los rostros
+RUTA_CARPETA_ROSTROS = "Fotos_Rostros"
+
+codificaciones_conocidas = []
+nombres_conocidos = []
+
+print("Iniciando carga de rostros conocidos...")
+
+for nombre_archivo in os.listdir(RUTA_CARPETA_ROSTROS):
+
+    if nombre_archivo.endswith(".jpg") or nombre_archivo.endswith(".png"):
+
+        ruta_imagen = os.path.join(RUTA_CARPETA_ROSTROS, nombre_archivo)
+
+        imagen_conocida = face_recognition.load_image_file(ruta_imagen)
+
+        try:
+            codificacion_rostro = face_recognition.face_encodings(imagen_conocida)[0]
+
+            nombre_persona = os.path.splitext(nombre_archivo)[0]
+
+            codificaciones_conocidas.append(codificacion_rostro)
+            nombres_conocidos.append(nombre_persona)
+
+            print(f" > Rostro de '{nombre_persona}' cargado correctamente.")
+        except IndexError:
+            print(f"Advertencia: No se pudo encontrar un rostro en {nombre_archivo}. Archivo omitido.")
+        except Exception as e:
+            print(f"Error procesando {nombre_archivo}: {e}")
+
+print(f"Carga finalizada. {len(nombres_conocidos)} rostros cargados.")
+
+
+# try:
+#     imagen_referencia = face_recognition.load_image_file("foto.jpg") #Cambiar despues por una foto de la persona
+#     codificacion_referencia = face_recognition.face_encodings(imagen_referencia)[0]
+#     codificaciones_conocidas = [codificacion_referencia]
+#     nombres_conocidos = ["Inserte nombre"] #Cambiar luego por el nombre de la persona
+# except FileNotFoundError:
+#     print("Advertencia: No se encontro ninguna imagen, el reconocimiento facial estara desactivado")
+#     codificaciones_conocidas = []
+#     nombres_conocidos = [0]
 
 # --- 3. FUNCIONES PARA EL RECONOCIMIENTO DE GESTOS ---
 def is_finger_extended(finger_tip, finger_pip, finger_mcp):
@@ -129,16 +163,20 @@ while True:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
             
     # Procesamiento de rostros (si las imágenes se cargaron)
-    if codificaciones_conocidas:
+    if nombres_conocidos:
         ubicaciones_rostros = face_recognition.face_locations(rgb_frame)
         codificaciones_rostros = face_recognition.face_encodings(rgb_frame, ubicaciones_rostros)
         for (top, right, bottom, left), face_encoding in zip(ubicaciones_rostros, codificaciones_rostros):
-            matches = face_recognition.compare_faces(codificaciones_conocidas, face_encoding)
+            coincidencias = face_recognition.compare_faces(codificaciones_conocidas, face_encoding)
             nombre = "Desconocido"
-            if True in matches:
-                nombre = nombres_conocidos[matches.index(True)]
+            if True in coincidencias:
+                primer_indice = coincidencias.index(True)
+                nombre = nombres_conocidos[primer_indice]
+
+            # Dibujar el rectangulo y el nombre
             cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
-            cv2.putText(frame, nombre, (left, bottom + 20), cv2.FONT_HERSHEY_DUPLEX, 0.6, (255, 255, 255), 1)
+            cv2.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 255, 0), cv2.FILLED)
+            cv2.putText(frame, nombre, (left + 6, bottom - 6), cv2.FONT_HERSHEY_DUPLEX, 1.0, (255, 255, 255), 1)
 
     # Mostrar estado del LED en pantalla
     cv2.putText(frame, f"Estado LED: {led_state}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
