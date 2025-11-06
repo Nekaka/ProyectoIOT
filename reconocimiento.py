@@ -15,7 +15,7 @@ except serial.SerialException as e:
 
 led_state = 'OFF'
 last_action_time = 0  # Tiempo en que se realizó la última acción
-COOLDOWN_SECONDS = 2  # 2 segundos de enfriamiento entre acciones
+COOLDOWN_SECONDS = 5  # 5 segundos de enfriamiento entre acciones
 
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(
@@ -46,14 +46,12 @@ def recognize_gesture(hand_landmarks, handedness):
 
     landmarks = hand_landmarks.landmark
     
-    # La lógica para los dedos índice, medio, anular y meñique no cambia,
-    # ya que se basa en la coordenada Y (vertical).
+    # La lógica para los dedos índice, medio, anular y meñique 
     is_index_extended = landmarks[mp_hands.HandLandmark.INDEX_FINGER_TIP].y < landmarks[mp_hands.HandLandmark.INDEX_FINGER_MCP].y
     is_middle_extended = landmarks[mp_hands.HandLandmark.MIDDLE_FINGER_TIP].y < landmarks[mp_hands.HandLandmark.MIDDLE_FINGER_MCP].y
     is_ring_extended = landmarks[mp_hands.HandLandmark.RING_FINGER_TIP].y < landmarks[mp_hands.HandLandmark.RING_FINGER_MCP].y
     is_pinky_extended = landmarks[mp_hands.HandLandmark.PINKY_TIP].y < landmarks[mp_hands.HandLandmark.PINKY_MCP].y
 
-    # --- Lógica corregida para el pulgar ---
     # Si es la mano DERECHA, la punta del pulgar debe tener una X menor que la base.
     if handedness == 'Right':
         is_thumb_extended = landmarks[mp_hands.HandLandmark.THUMB_TIP].x < landmarks[mp_hands.HandLandmark.THUMB_IP].x
@@ -81,7 +79,6 @@ while True:
 
     results_hands = hands.process(rgb_frame)
     if results_hands.multi_hand_landmarks:
-        # --- CAMBIO 2: Iteramos usando un índice para acceder a la lateralidad ---
         for idx, hand_landmarks in enumerate(results_hands.multi_hand_landmarks):
             # Obtenemos la etiqueta 'Left' o 'Right'
             handedness_obj = results_hands.multi_handedness[idx]
@@ -95,8 +92,6 @@ while True:
             
             current_time = time.time()
             if gesture_name == "Cinco" and (current_time - last_action_time) > COOLDOWN_SECONDS:
-                
-                # --- CAMBIO 3: Lógica de acciones separada por mano ---
                 if handedness_label == 'Left':
                     # ACCIÓN PARA LA MANO IZQUIERDA: Controlar el LED
                     if led_state == 'OFF':
