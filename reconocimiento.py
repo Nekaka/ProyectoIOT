@@ -67,17 +67,6 @@ for nombre_archivo in os.listdir(RUTA_CARPETA_ROSTROS):
 
 print(f"Carga finalizada. {len(nombres_conocidos)} rostros cargados.")
 
-
-# try:
-#     imagen_referencia = face_recognition.load_image_file("foto.jpg") #Cambiar despues por una foto de la persona
-#     codificacion_referencia = face_recognition.face_encodings(imagen_referencia)[0]
-#     codificaciones_conocidas = [codificacion_referencia]
-#     nombres_conocidos = ["Inserte nombre"] #Cambiar luego por el nombre de la persona
-# except FileNotFoundError:
-#     print("Advertencia: No se encontro ninguna imagen, el reconocimiento facial estara desactivado")
-#     codificaciones_conocidas = []
-#     nombres_conocidos = [0]
-
 # --- 3. FUNCIONES PARA EL RECONOCIMIENTO DE GESTOS ---
 def is_finger_extended(finger_tip, finger_pip, finger_mcp):
     """Comprueba si un dedo está extendido comparando las coordenadas Y."""
@@ -139,8 +128,6 @@ while True:
         ubicaciones_rostros_actuales = []
         nombres_rostros_actuales = []
         
-        # --- CAMBIO CLAVE: Volvimos a 'hog' (quitando model="cnn") ---
-        # 'hog' es el modelo predeterminado. Es súper rápido.
         locations = face_recognition.face_locations(rgb_frame, model="hog")
         
         if locations: # Si 'hog' encontró algo
@@ -155,7 +142,7 @@ while True:
                 nombres_rostros_actuales.append(nombre)
         # Si 'hog' no encontró nada, las listas simplemente quedarán vacías (no hay error)
 
-    # --- Procesamiento de Manos (sin cambios) ---
+    # --- Procesamiento de Manos ---
     if frame_counter % FRAME_SKIP_HANDS == 0:
         gestos_actuales = []
         results_hands = hands.process(rgb_frame)
@@ -180,7 +167,7 @@ while True:
                 gestos_actuales.append((handedness_label, gesture_name, (coords[0]*2, coords[1]*2)))
                 mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
-    # --- SECCIÓN DE DIBUJO (sin cambios) ---
+    # --- SECCIÓN DE DIBUJO ---
     for (top, right, bottom, left), nombre in zip(ubicaciones_rostros_actuales, nombres_rostros_actuales):
         cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
         cv2.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 255, 0), cv2.FILLED)
