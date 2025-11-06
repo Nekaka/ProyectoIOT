@@ -3,6 +3,7 @@ import face_recognition
 import mediapipe as mp
 import serial
 import time
+import os
 
 try:
     arduino = serial.Serial(port='COM8', baudrate=9600, timeout=.1)
