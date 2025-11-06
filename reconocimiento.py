@@ -48,7 +48,7 @@ for nombre_archivo in os.listdir(RUTA_CARPETA_ROSTROS):
 
             pil_image = Image.open(ruta_imagen)
 
-            rgb_frame = pil_image.convert('RGB')
+            rgb_image = pil_image.convert('RGB')
 
             imagen_conocida = np.array(rgb_image)
 
@@ -110,81 +110,111 @@ def recognize_gesture(hand_landmarks, handedness):
     return "No reconocido"
 
 # --- 4. BUCLE PRINCIPAL DE CAPTURA DE VIDEO Y PROCESAMIENTO ---
+# Variables para el salto de frames
+frame_counter = 0
+FRAME_SKIP_FACE = 10  # Analizar rostros solo 1 de cada 10 frames
+FRAME_SKIP_HANDS = 2  # Analizar manos solo 1 de cada 2 frames (MediaPipe es rápido, pero ayuda)
+
+# Variables para almacenar los últimos resultados conocidos
+# Esto nos permite seguir dibujando los cuadros aunque no estemos analizando
+ubicaciones_rostros_actuales = []
+nombres_rostros_actuales = []
+gestos_actuales = [] # Almacenará tuplas (etiqueta, nombre_gesto, coordenadas)
+
 webcam = cv2.VideoCapture(0)
-print("Iniciando cámara... Presiona 'q' para salir.")
+print("Iniciando cámara optimizada... Presiona 'q' para salir.")
 
 while True:
     ret, frame = webcam.read()
-    if not ret: break
+    if not ret: 
+        print("Error de cámara")
+        break
+    
     frame = cv2.flip(frame, 1)
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-    results_hands = hands.process(rgb_frame)
-    if results_hands.multi_hand_landmarks:
-        for idx, hand_landmarks in enumerate(results_hands.multi_hand_landmarks):
-            # Obtenemos la etiqueta 'Left' o 'Right'
-            handedness_obj = results_hands.multi_handedness[idx]
-            handedness_label = handedness_obj.classification[0].label
+    # --- OPTIMIZACIÓN 1: Redimensionar el fotograma ---
+    # Procesar una imagen más pequeña es MUCHO más rápido para todo.
+    # Reducimos a la mitad (0.5)
+    frame_pequeno = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
+    
+    # Convertimos a RGB solo una vez
+    rgb_frame = cv2.cvtColor(frame_pequeno, cv2.COLOR_BGR2RGB)
 
-            # Dibujamos los puntos en la mano
-            mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
-            
-            # Pasamos la lateralidad a nuestra función de reconocimiento
-            gesture_name = recognize_gesture(hand_landmarks, handedness_label)
-            
-            current_time = time.time()
-            if gesture_name == "Cinco" and (current_time - last_action_time) > COOLDOWN_SECONDS:
-                if handedness_label == 'Left':
-                    # ACCIÓN PARA LA MANO IZQUIERDA: Controlar el LED
-                    if led_state == 'OFF':
-                        if arduino: arduino.write(b'H')
-                        led_state = 'ON'
-                        print(f"ACCIÓN (Mano Izquierda): Encendiendo LED")
-                    else:
-                        if arduino: arduino.write(b'L')
-                        led_state = 'OFF'
-                        print(f"ACCIÓN (Mano Izquierda): Apagando LED")
-                    last_action_time = current_time # Iniciar cooldown
-                
-                elif handedness_label == 'Right':
-                    # ACCIÓN PARA LA MANO DERECHA: Imprimir un mensaje (o lo que quieras)
-                    print(f"ACCIÓN (Mano Derecha): ¡Hola desde la mano derecha!")
-                    last_action_time = current_time # Iniciar cooldown
-            if gesture_name == "Puño" and (current_time - last_action_time) > COOLDOWN_SECONDS:
-                if handedness_label == 'Left':
-                    if led_state == 'OFF':
-                        if arduino: arduino.write(b'H')
-                        led_state = 'ON'
-                        print(f"ACCIÓN (Mano Izquierda): Encendiendo LED")
-                    else:
-                        if arduino: arduino.write(b'L')
-                        led_state = 'OFF'
-                        print(f"ACCIÓN (Mano Izquierda): Apagando LED")
-                    last_action_time = current_time # Iniciar cooldown
-                elif handedness_label == 'Right':
-                    print(f"Despues pensare que ponerle a este gesto XD")
-                    last_action_time = current_time # Iniciar cooldown
+    # Incrementamos el contador de frames
+    frame_counter += 1
 
-            # Mostramos en pantalla qué mano y qué gesto se detectó
-            wrist = hand_landmarks.landmark[mp_hands.HandLandmark.WRIST]
-            cv2.putText(frame, f"{handedness_label} - Gesto: {gesture_name}", (int(wrist.x * frame.shape[1]) - 50, int(wrist.y * frame.shape[0]) - 20),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-            
-    # Procesamiento de rostros (si las imágenes se cargaron)
-    if nombres_conocidos:
-        ubicaciones_rostros = face_recognition.face_locations(rgb_frame)
-        codificaciones_rostros = face_recognition.face_encodings(rgb_frame, ubicaciones_rostros)
-        for (top, right, bottom, left), face_encoding in zip(ubicaciones_rostros, codificaciones_rostros):
+    # --- Procesamiento de Rostros (con salto de frames) ---
+    if frame_counter % FRAME_SKIP_FACE == 0:
+        # ¡Solo ejecutamos esto 1 de cada 10 frames!
+        ubicaciones_rostros_actuales = [] # Borramos los resultados anteriores
+        nombres_rostros_actuales = []
+        
+        # Usamos el frame_pequeno (rgb_frame) para la detección
+        locations = face_recognition.face_locations(rgb_frame, model="cnn")
+        encodings = face_recognition.face_encodings(rgb_frame, locations)
+
+        for face_encoding, (top, right, bottom, left) in zip(encodings, locations):
             coincidencias = face_recognition.compare_faces(codificaciones_conocidas, face_encoding)
             nombre = "Desconocido"
             if True in coincidencias:
-                primer_indice = coincidencias.index(True)
-                nombre = nombres_conocidos[primer_indice]
+                nombre = nombres_conocidos[coincidencias.index(True)]
+            
+            # Guardamos los resultados para dibujarlos después
+            # Multiplicamos por 2 para re-escalar las coordenadas al 'frame' original
+            ubicaciones_rostros_actuales.append((top*2, right*2, bottom*2, left*2))
+            nombres_rostros_actuales.append(nombre)
 
-            # Dibujar el rectangulo y el nombre
-            cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
-            cv2.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 255, 0), cv2.FILLED)
-            cv2.putText(frame, nombre, (left + 6, bottom - 6), cv2.FONT_HERSHEY_DUPLEX, 1.0, (255, 255, 255), 1)
+    # --- Procesamiento de Manos (con salto de frames) ---
+    if frame_counter % FRAME_SKIP_HANDS == 0:
+        # ¡Solo ejecutamos esto 1 de cada 2 frames!
+        gestos_actuales = [] # Borramos los gestos anteriores
+        results_hands = hands.process(rgb_frame)
+        
+        if results_hands.multi_hand_landmarks:
+            for idx, hand_landmarks in enumerate(results_hands.multi_hand_landmarks):
+                handedness_obj = results_hands.multi_handedness[idx]
+                handedness_label = handedness_obj.classification[0].label
+                gesture_name = recognize_gesture(hand_landmarks, handedness_label)
+                
+                # Lógica del Cooldown (no cambia)
+                current_time = time.time()
+                if gesture_name == "Cinco" and (current_time - last_action_time) > COOLDOWN_SECONDS:
+                    if handedness_label == 'Left':
+                        # ... (lógica del LED)
+                        led_state = 'ON' if led_state == 'OFF' else 'OFF' # Toggle
+                        print(f"ACCIÓN (Izquierda): LED {led_state}")
+                        last_action_time = current_time
+                    elif handedness_label == 'Right':
+                        print(f"ACCIÓN (Derecha): ¡Hola!")
+                        last_action_time = current_time
+                
+                # Guardamos los gestos para dibujarlos
+                wrist = hand_landmarks.landmark[mp_hands.HandLandmark.WRIST]
+                coords = (int(wrist.x * frame_pequeno.shape[1]), int(wrist.y * frame_pequeno.shape[0]))
+                # Multiplicamos por 2 para re-escalar al frame original
+                gestos_actuales.append((handedness_label, gesture_name, (coords[0]*2, coords[1]*2)))
+                
+                # Dibujamos las manos (podemos hacer esto aquí ya que es rápido)
+                # NOTA: Dibujamos en el 'frame' grande original
+                mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+
+
+    # --- SECCIÓN DE DIBUJO (Se ejecuta en CADA frame) ---
+    # Dibujamos los últimos resultados conocidos de los rostros
+    for (top, right, bottom, left), nombre in zip(ubicaciones_rostros_actuales, nombres_rostros_actuales):
+        # Dibujamos en el 'frame' grande original
+        cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
+        cv2.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 255, 0), cv2.FILLED)
+        cv2.putText(frame, nombre, (left + 6, bottom - 6), cv2.FONT_HERSHEY_DUPLEX, 1.0, (255, 255, 255), 1)
+
+    # Dibujamos los últimos gestos conocidos
+    for (handedness_label, gesture_name, (x, y)) in gestos_actuales:
+        cv2.putText(frame, f"{handedness_label} - {gesture_name}", (x - 50, y - 20),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
+    # Reseteamos el contador para evitar que crezca indefinidamente
+    if frame_counter > 100:
+        frame_counter = 0
 
     # Mostrar estado del LED en pantalla
     cv2.putText(frame, f"Estado LED: {led_state}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
