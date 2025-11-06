@@ -4,6 +4,8 @@ import mediapipe as mp
 import serial
 import time
 import os
+from PIL import Image  # Para manejar la conversión de imágenes
+import numpy as np     # Para convertir la imagen a un formato que face_recognition entienda
 
 try:
     arduino = serial.Serial(port='COM8', baudrate=9600, timeout=.1)
@@ -42,9 +44,14 @@ for nombre_archivo in os.listdir(RUTA_CARPETA_ROSTROS):
 
         ruta_imagen = os.path.join(RUTA_CARPETA_ROSTROS, nombre_archivo)
 
-        imagen_conocida = face_recognition.load_image_file(ruta_imagen)
-
         try:
+
+            pil_image = Image.open(ruta_imagen)
+
+            rgb_frame = pil_image.convert('RGB')
+
+            imagen_conocida = np.array(rgb_image)
+
             codificacion_rostro = face_recognition.face_encodings(imagen_conocida)[0]
 
             nombre_persona = os.path.splitext(nombre_archivo)[0]
