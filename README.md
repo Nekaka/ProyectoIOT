@@ -24,11 +24,23 @@ Actualizar pip en caso de algún error relacionado con las versiones:
 
     python -m pip install --upgrade pip
 
+Instalar mediapipe para le mapeo de las manos
+
+    pip install mediapipe
+
 Actualizar las demás librerias en caso que no se hayan descargado las ultimas disponibles:
 
     pip install --upgrade numpy
 
     pip install --upgrade mediapipe
+
+Instalar libreria de firebase para la conexion con la base de datos
+
+    pip install firebase-admin
+
+Actualizar dependencias por posibles errores en las versiones
+
+    pip install --upgrade mediapipe firebase-admin protobuf grpcio
 
 ### La carpeta sketch es un codigo básico para utilizar en el arduino que de momento solo enciende y apaga un led al abrir y cerrar el puño frente a la webcam.
 ### Utilizar reconocimiento.py en VisualStudio Code preferentemente y cambiar en el codigo el puerto COM por el que este usando su arduino.
