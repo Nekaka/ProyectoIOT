@@ -1,0 +1,20 @@
+{
+  "name": "Panel Maqueta IoT",
+  "short_name": "MaquetaIoT",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#f0f2f5",
+  "theme_color": "#007bff",
+  "icons": [
+    {
+      "src": "https://www.gstatic.com/mobilesdk/160503_mobilesdk/logo/2x/firebase_28dp.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://www.gstatic.com/mobilesdk/160503_mobilesdk/logo/2x/firebase_28dp.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}
