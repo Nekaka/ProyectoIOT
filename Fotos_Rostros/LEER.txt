@@ -1,0 +1,1 @@
+Ingresa aquí las fotografias de las personas que quieres que el programa reconozca en formato jpg o png.
