@@ -1,0 +1,46 @@
+{
+  "available_gestures": [
+    "No Asignado",
+    "Uno-Right", "Dos-Right", "Tres-Right", "Cinco-Right", "Puño-Right",
+    "Uno-Left", "Dos-Left", "Tres-Left", "Cinco-Left", "Puño-Left"
+  ],
+  "available_pins": {
+    "D0 (GPIO 16)": 16, "D1 (GPIO 5)": 5, "D2 (GPIO 4)": 4,
+    "D3 (GPIO 0)": 0, "D4 (GPIO 2)": 2, "D5 (GPIO 14)": 14,
+    "D6 (GPIO 12)": 12, "D7 (GPIO 13)": 13, "D8 (GPIO 15)": 15
+  },
+  "devices": {
+    "dev_01": {
+      "name": "Luz Living", "type": "led", "pin": 14,
+      "gesture": "Uno-Right", "state_key": "ledLiving"
+    },
+    "dev_02": {
+      "name": "Luz Baño", "type": "led", "pin": 12,
+      "gesture": "Dos-Right", "state_key": "ledBano"
+    },
+    "dev_03": {
+      "name": "Luz Dormitorio", "type": "led", "pin": 13,
+      "gesture": "Tres-Right", "state_key": "ledDormitorio"
+    },
+    "dev_04": {
+      "name": "Portón", "type": "servo", "pin": 15,
+      "gesture": "Cinco-Left", "state_key": "porton",
+      "params": { "angle_open": 90, "angle_closed": 0 }
+    },
+    "dev_05": {
+      "name": "Televisor", "type": "lcd", "i2c_address": "0x27",
+      "gesture": "Tres-Right", "state_key": "tvLiving",
+      "params": {
+        "line1_on": "TV Encendida", "line2_on": "Canal: 05",
+        "line1_off": "TV Apagada", "line2_off": ""
+      }
+    }
+  },
+  "status": {
+    "ledLiving": "OFF", "ledBano": "OFF", "ledDormitorio": "OFF",
+    "porton": "CERRADO", "tvLiving": "OFF",
+    "currentUser": "Nadie", "isAuthorized": false
+  },
+  "logs": { "init": "Sistema reiniciado" },
+  "commands": { "init": "ok" }
+}

@@ -10,90 +10,126 @@
         .container { max-width: 900px; margin: auto; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         .card { background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); overflow: hidden; }
-        .card-header { padding: 20px; border-bottom: 1px solid #eee; }
+        .card-header { padding: 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
         .card-header h2 { margin: 0; }
         .card-body { padding: 20px; }
         
-        /* Tarjeta de Estado Principal */
-        #status-card h1 { text-align: center; margin: 0 0 15px 0; }
-        #user-status { font-size: 1.2em; text-align: center; font-weight: 500; }
-        #user-status.authorized { color: #28a745; }
-        #user-status.unauthorized { color: #dc3545; }
-        
-        /* Grid de Dispositivos */
+        /* Tarjetas de Dispositivos */
         .devices-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
-        .device-status { padding: 15px; border-radius: 8px; border: 1px solid #ddd; text-align: center; transition: all 0.3s ease; }
-        .device-status strong { font-size: 1.1em; display: block; margin-bottom: 5px; }
-        .device-status span { font-size: 1.3em; font-weight: 600; }
+        .device-status { 
+            padding: 20px; border-radius: 8px; border: 1px solid #ddd; 
+            text-align: center; transition: all 0.3s ease; cursor: pointer; 
+            user-select: none; position: relative; /* Necesario para posicionar el botón editar */
+            min-height: 80px; display: flex; flex-direction: column; justify-content: center;
+        }
+        .device-status:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         
-        /* Estilos de Estado */
+        .device-status strong { font-size: 1.2em; display: block; margin-bottom: 5px; }
+        .device-status span { font-size: 1.4em; font-weight: 700; }
+        
+        /* Botón Editar (Posición Segura) */
+        .device-status .edit-btn { 
+            position: absolute; top: 5px; right: 5px; /* Esquina superior derecha */
+            font-size: 0.7em; padding: 4px 8px; 
+            background: rgba(255,255,255,0.7); color: #333; 
+            border-radius: 4px; text-decoration: none; border: 1px solid #ccc;
+            z-index: 10; /* Asegurar que esté encima */
+        }
+        .device-status .edit-btn:hover { background: #fff; }
+
+        /* Estados */
         .state-on, .state-open { background: #d4edda; border-color: #c3e6cb; color: #155724; }
         .state-off, .state-closed { background: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+
+        /* Logs */
+        #log-list { list-style: none; padding: 0; max-height: 300px; overflow-y: auto; font-size: 0.9em; }
+        #log-list li { padding: 8px 0; border-bottom: 1px solid #eee; }
         
-        /* Tarjetas de Logs */
-        #log-list, #unknown-list { list-style: none; padding: 0; margin: 0; max-height: 300px; overflow-y: auto; }
-        #log-list li, #unknown-list li { padding: 10px; border-bottom: 1px solid #eee; font-size: 0.9em; }
-        #log-list li:last-child, #unknown-list li:last-child { border: none; }
-        .log-gesture { color: #007bff; }
-        .log-unknown { color: #dc3545; font-weight: 600; }
-        
-        @media (max-width: 768px) {
-            .grid { grid-template-columns: 1fr; }
-        }
+        /* Botones Generales */
+        .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+
+        /* Estado del Usuario */
+        .status-msg { padding: 10px; border-radius: 8px; border: 1px solid #ccc; margin-bottom: 15px; text-align: center;}
+        .status-msg.remote { background-color: #e2e3e5; color: #383d41; border-color: #d6d8db; }
+        .status-msg.authorized { background-color: #d1e7dd; color: #0f5132; border-color: #badbcc; }
+
+        /* Modal */
+        .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; display: none; }
+        .modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; border-radius: 8px; z-index: 101; width: 90%; max-width: 500px; }
+        .modal-body { padding: 20px; max-height: 60vh; overflow-y: auto; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 500; }
+        .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        .params-group { display: none; border-top: 1px dashed #ccc; margin-top: 10px; padding-top: 10px; }
+        .modal-footer { padding: 15px; text-align: right; border-top: 1px solid #eee; }
+
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
-
     <div class="container">
         <div class="grid">
-            <div class="card" id="status-card">
+            <div class="card">
                 <div class="card-header">
-                    <h1>Estado del Sistema</h1>
-                    <p id="user-status">Conectando...</p>
+                    <h2>Control</h2>
+                    <button class="btn btn-primary" id="add-device-btn">+ Añadir</button>
                 </div>
                 <div class="card-body">
-                    <h2>Dispositivos de la Maqueta</h2>
-                    <div class="devices-grid">
-                        <div id="status-living" class="device-status state-off">
-                            <strong>Luz Living</strong>
-                            <span id="led-living-state">OFF</span>
-                        </div>
-                        <div id="status-cocina" class="device-status state-off">
-                            <strong>Luz Cocina</strong>
-                            <span id="led-cocina-state">OFF</span>
-                        </div>
-                        <div id="status-dormitorio" class="device-status state-off">
-                            <strong>Luz Dormitorio</strong>
-                            <span id="led-dormitorio-state">OFF</span>
-                        </div>
-                        <div id="status-porton" class="device-status state-closed">
-                            <strong>Portón</strong>
-                            <span id="porton-state">CERRADO</span>
-                        </div>
-                    </div>
+                    <div id="user-status" class="status-msg remote">Conectando...</div>
+                    <div class="devices-grid" id="devices-grid-container"></div>
                 </div>
             </div>
+            <div class="card">
+                <div class="card-header"><h2>Registros</h2></div>
+                <div class="card-body">
+                    <ul id="log-list"><li>Cargando...</li></ul>
+                </div>
+            </div>
+        </div>
+    </div>
 
-            <div>
-                <div class="card">
-                    <div class="card-header"><h2>Registro de Actividad (Gestos)</h2></div>
-                    <div class="card-body">
-                        <ul id="log-list"><li>Esperando datos...</li></ul>
-                    </div>
+    <div class="modal-backdrop" id="admin-modal-backdrop">
+        <div class="modal" id="admin-modal">
+            <div class="modal-body">
+                <h3 id="modal-title">Dispositivo</h3>
+                <input type="hidden" id="modal-device-id">
+                <div class="form-group"><label>Nombre</label><input type="text" id="modal-name"></div>
+                <div class="form-group"><label>Clave (sin espacios)</label><input type="text" id="modal-state-key"></div>
+                <div class="form-group"><label>Tipo</label>
+                    <select id="modal-type">
+                        <option value="led">LED</option>
+                        <option value="servo">Servo</option>
+                        <option value="lcd">LCD</option>
+                    </select>
                 </div>
-                <div class="card" style="margin-top: 20px;">
-                    <div class="card-header"><h2>Registro de Desconocidos</h2></div>
-                    <div class="card-body">
-                        <ul id="unknown-list"><li>Sin detecciones...</li></ul>
-                    </div>
+                <div class="form-group"><label>Pin (ESP8266)</label><select id="modal-pin"></select></div>
+                <div class="form-group"><label>Gesto</label><select id="modal-gesture"></select></div>
+                
+                <div class="params-group" id="params-servo">
+                    <div class="form-group"><label>Ángulo Abierto</label><input type="number" id="modal-servo-open" value="90"></div>
+                    <div class="form-group"><label>Ángulo Cerrado</label><input type="number" id="modal-servo-closed" value="0"></div>
                 </div>
+                <div class="params-group" id="params-lcd">
+                    <div class="form-group"><label>Dirección I2C</label><input type="text" id="modal-lcd-addr" value="0x27"></div>
+                    <div class="form-group"><label>Línea 1 (ON)</label><input type="text" id="modal-l1-on"></div>
+                    <div class="form-group"><label>Línea 2 (ON)</label><input type="text" id="modal-l2-on"></div>
+                    <div class="form-group"><label>Línea 1 (OFF)</label><input type="text" id="modal-l1-off"></div>
+                    <div class="form-group"><label>Línea 2 (OFF)</label><input type="text" id="modal-l2-off"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" id="modal-delete-btn" style="float: left;">Borrar</button>
+                <button class="btn btn-secondary" id="modal-cancel-btn">Cancelar</button>
+                <button class="btn btn-primary" id="modal-save-btn">Guardar</button>
             </div>
         </div>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
-    
     <script src="app.js"></script>
 </body>
 </html>
